@@ -1,0 +1,75 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  sam-demo-app
+
+  Sample SAM Template for sam-demo-app
+
+Parameters:
+  DynamoDBUrl:
+    Type: String
+    Default: http://172.17.0.1:8000
+  Environment:
+    Type: String
+    AllowedValues:
+      - local
+      - preproduction
+      - main
+    Default: local
+    Description: environment values
+
+  ProjectName:
+    Default: SamDemoApp
+    Type: String
+    Description: Name of the project
+
+  ServiceName:
+    Default: Membership
+    Type: String
+    Description: Service name
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 25
+    Runtime: python3.8
+    AutoPublishAlias: !Ref Environment
+    Environment:
+      Variables:
+        DYNAMODB_URL: !If [IsLocalEnvironment, "Test", !Ref AWS::NoValue]
+
+Conditions:
+  IsLocalEnvironment:
+    !Equals [!Ref Environment, local]
+
+Resources:
+  RestApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub '${ProjectName}-${Environment}-${ServiceName}-Api'
+      Cors:
+        AllowMethods: "'*'"
+        AllowHeaders: "'*'"
+        AllowOrigin: "'*'"
+      StageName: !Ref Environment
+
+  MembershipApplicationFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: membership_application/
+      Handler: app.lambda_handler
+      Events:
+        MembershipApplication:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /hello
+            Method: get
+            RestApiId: !Ref RestApi
+
+Outputs:
+  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
+  # Find out more about other implicit resources you can reference within SAM
+  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+  MembershipApplicationApi:
+    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
+    Value: !Sub "https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/"
